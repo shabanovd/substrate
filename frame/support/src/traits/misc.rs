@@ -356,6 +356,18 @@ where
 	}
 }
 
+pub trait IntoBound {
+	fn bound() -> usize;
+}
+
+impl<T> IntoBound for T
+	where T: Get<u32>
+{
+	fn bound() -> usize {
+		usize::try_from(T::get()).unwrap_or(0)
+	}
+}
+
 /// A trait for querying a single value from a type.
 ///
 /// It is not required that the value is constant.
