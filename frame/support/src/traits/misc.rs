@@ -407,9 +407,31 @@ macro_rules! impl_const_get {
 	};
 }
 
+macro_rules! impl_const_get_and_into_bound {
+	($name:ident, $t:ty) => {
+		#[derive($crate::RuntimeDebug)]
+		pub struct $name<const T: $t>;
+		impl<const T: $t> Get<$t> for $name<T> {
+			fn get() -> $t {
+				T
+			}
+		}
+		impl<const T: $t> Get<Option<$t>> for $name<T> {
+			fn get() -> Option<$t> {
+				Some(T)
+			}
+		}
+		impl<const T: $t> IntoBound for $name<T> {
+			fn bound() -> usize {
+				usize::try_from(T).unwrap_or(0)
+			}
+		}
+	};
+}
+
 impl_const_get!(ConstBool, bool);
-impl_const_get!(ConstU8, u8);
-impl_const_get!(ConstU16, u16);
+impl_const_get_and_into_bound!(ConstU8, u8);
+impl_const_get_and_into_bound!(ConstU16, u16);
 impl_const_get!(ConstU32, u32);
 impl_const_get!(ConstU64, u64);
 impl_const_get!(ConstU128, u128);

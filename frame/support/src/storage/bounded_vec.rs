@@ -356,7 +356,7 @@ impl<T, S: IntoBound> BoundedVec<T, S> {
 	/// Infallible, but if the bound is zero, then it's a no-op.
 	pub fn force_push(&mut self, element: T) {
 		if Self::bound() > 0 {
-			self.0.truncate(Self::bound() as usize - 1);
+			self.0.truncate(Self::bound() - 1);
 			self.0.push(element);
 		}
 	}
@@ -596,7 +596,7 @@ where
 	type Error = &'static str;
 
 	fn try_collect(self) -> Result<BoundedVec<T, S>, Self::Error> {
-		if self.len() > S::bound() as usize {
+		if self.len() > S::bound() {
 			Err("iterator length too big")
 		} else {
 			Ok(BoundedVec::<T, S>::unchecked_from(self.collect::<Vec<T>>()))
@@ -607,7 +607,7 @@ where
 #[cfg(test)]
 pub mod test {
 	use super::*;
-	use crate::{bounded_vec, traits::ConstU32, Twox128};
+	use crate::{bounded_vec, traits::ConstU8, traits::ConstU16, traits::ConstU32, Twox128};
 	use sp_io::TestExternalities;
 
 	crate::generate_storage_alias! { Prefix, Foo => Value<BoundedVec<u32, ConstU32<7>>> }
@@ -940,5 +940,20 @@ pub mod test {
 		let mut b: BoundedVec<u32, ConstU32<5>> = bounded_vec![1, 2, 3];
 		assert!(b.try_extend(vec![4, 5, 6].into_iter()).is_err());
 		assert_eq!(*b, vec![1, 2, 3]);
+	}
+
+	#[test]
+	fn try_into_works() {
+		// with u8 bound
+		let bv: BoundedVec<u32, ConstU8<3>> = sp_std::vec![1, 2, 3].try_into().unwrap();
+		assert_eq!(bv, vec![1, 2, 3]);
+
+		// with u16 bound
+		let bv: BoundedVec<u32, ConstU16<3>> = sp_std::vec![1, 2, 3].try_into().unwrap();
+		assert_eq!(bv, vec![1, 2, 3]);
+
+		// with u32 bound
+		let bv: BoundedVec<u32, ConstU32<3>> = sp_std::vec![1, 2, 3].try_into().unwrap();
+		assert_eq!(bv, vec![1, 2, 3]);
 	}
 }
