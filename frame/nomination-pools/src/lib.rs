@@ -306,6 +306,7 @@
 //!   chains total issuance, staking reward rate, and burn rate.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(generic_const_exprs)]
 
 use codec::Codec;
 use frame_support::{
@@ -1037,10 +1038,6 @@ pub mod pallet {
 	use frame_support::transactional;
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
-	#[pallet::pallet]
-	#[pallet::generate_store(pub(crate) trait Store)]
-	pub struct Pallet<T>(_);
-
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
@@ -1076,11 +1073,15 @@ pub mod pallet {
 		type PostUnbondingPoolsWindow: Get<u32>;
 
 		/// The maximum length, in bytes, that a pools metadata maybe.
-		type MaxMetadataLen: Get<u32>;
+		const MaxMetadataLen: u32;
 
 		/// The maximum number of simultaneous unbonding chunks that can exist per member.
 		type MaxUnbonding: Get<u32>;
 	}
+
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(crate) trait Store)]
+	pub struct Pallet<T>(PhantomData<T>);
 
 	/// Minimum amount to bond to join a pool.
 	#[pallet::storage]
@@ -1132,7 +1133,7 @@ pub mod pallet {
 	/// Metadata for the pool.
 	#[pallet::storage]
 	pub type Metadata<T: Config> =
-		CountedStorageMap<_, Twox64Concat, PoolId, BoundedVec<u8, T::MaxMetadataLen>, ValueQuery>;
+		CountedStorageMap<_, Twox64Concat, PoolId, BoundedVec<u8, { T::MaxMetadataLen }>, ValueQuery>;
 
 	#[pallet::storage]
 	pub type LastPoolId<T: Config> = StorageValue<_, u32, ValueQuery>;

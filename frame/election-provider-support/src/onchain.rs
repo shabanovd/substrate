@@ -122,7 +122,7 @@ fn elect_with<T: Config>(
 	let weight = T::Solver::weight::<T::WeightInfo>(
 		voters_len,
 		targets_len,
-		<T::DataProvider as ElectionDataProvider>::MaxVotesPerVoter::get(),
+		T::DataProvider::MaxVotesPerVoter,
 	);
 	frame_system::Pallet::<T::System>::register_extra_weight_unchecked(
 		weight,
@@ -272,7 +272,7 @@ mod tests {
 		impl ElectionDataProvider for DataProvider {
 			type AccountId = AccountId;
 			type BlockNumber = BlockNumber;
-			type MaxVotesPerVoter = ConstU32<2>;
+			const MaxVotesPerVoter: u32 = 2;
 			fn electing_voters(_: Option<usize>) -> data_provider::Result<Vec<VoterOf<Self>>> {
 				Ok(vec![
 					(1, 10, bounded_vec![10, 20]),

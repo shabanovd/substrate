@@ -44,6 +44,7 @@
 //! one unsigned transaction floating in the network.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(generic_const_exprs)]
 
 use codec::{Decode, Encode};
 use frame_support::traits::Get;
@@ -156,8 +157,7 @@ pub mod pallet {
 		type UnsignedPriority: Get<TransactionPriority>;
 
 		/// Maximum number of prices.
-		#[pallet::constant]
-		type MaxPrices: Get<u32>;
+		const MaxPrices: u32;
 	}
 
 	#[pallet::pallet]
@@ -333,7 +333,7 @@ pub mod pallet {
 	/// This is used to calculate average price, should have bounded size.
 	#[pallet::storage]
 	#[pallet::getter(fn prices)]
-	pub(super) type Prices<T: Config> = StorageValue<_, BoundedVec<u32, T::MaxPrices>, ValueQuery>;
+	pub(super) type Prices<T: Config> = StorageValue<_, BoundedVec<u32, { T::MaxPrices }>, ValueQuery>;
 
 	/// Defines the block when next unsigned transaction will be accepted.
 	///
@@ -649,7 +649,7 @@ impl<T: Config> Pallet<T> {
 		log::info!("Adding to the average: {}", price);
 		<Prices<T>>::mutate(|prices| {
 			if prices.try_push(price).is_err() {
-				prices[(price % T::MaxPrices::get()) as usize] = price;
+				prices[(price % T::MaxPrices) as usize] = price;
 			}
 		});
 

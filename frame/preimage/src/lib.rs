@@ -27,6 +27,7 @@
 //! large byte-blobs.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(generic_const_exprs)]
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -89,7 +90,7 @@ pub mod pallet {
 		type ManagerOrigin: EnsureOrigin<Self::Origin>;
 
 		/// Max size allowed for a preimage.
-		type MaxSize: Get<u32>;
+		const MaxSize: u32;
 
 		/// The base deposit for placing a preimage on chain.
 		type BaseDeposit: Get<BalanceOf<Self>>;
@@ -137,7 +138,7 @@ pub mod pallet {
 	/// The preimages stored by this pallet.
 	#[pallet::storage]
 	pub(super) type PreimageFor<T: Config> =
-		StorageMap<_, Identity, T::Hash, BoundedVec<u8, T::MaxSize>>;
+		StorageMap<_, Identity, T::Hash, BoundedVec<u8, { T::MaxSize }>>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -205,7 +206,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// If the preimage was requested to be uploaded, then the user pays no deposits or tx fees.
 	fn note_bytes(
-		preimage: BoundedVec<u8, T::MaxSize>,
+		preimage: BoundedVec<u8, { T::MaxSize }>,
 		maybe_depositor: Option<&T::AccountId>,
 	) -> Result<bool, DispatchError> {
 		let hash = T::Hashing::hash(&preimage);
@@ -330,9 +331,9 @@ impl<T: Config> PreimageProvider<T::Hash> for Pallet<T> {
 }
 
 impl<T: Config> PreimageRecipient<T::Hash> for Pallet<T> {
-	type MaxSize = T::MaxSize;
+	const MAX_SIZE: u32 = T::MaxSize;
 
-	fn note_preimage(bytes: BoundedVec<u8, Self::MaxSize>) {
+	fn note_preimage(bytes: BoundedVec<u8, { Self::MAX_SIZE }>) {
 		// We don't really care if this fails, since that's only the case if someone else has
 		// already noted it.
 		let _ = Self::note_bytes(bytes, None);

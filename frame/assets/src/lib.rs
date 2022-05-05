@@ -230,8 +230,7 @@ pub mod pallet {
 		type ApprovalDeposit: Get<DepositBalanceOf<Self, I>>;
 
 		/// The maximum length of a name or symbol stored on-chain.
-		#[pallet::constant]
-		type StringLimit: Get<u32>;
+		const StringLimit: u32;
 
 		/// A hook to allow a per-asset, per-account minimum balance to be enforced. This must be
 		/// respected in all permissionless operations.
@@ -290,7 +289,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::AssetId,
-		AssetMetadata<DepositBalanceOf<T, I>, BoundedVec<u8, T::StringLimit>>,
+		AssetMetadata<DepositBalanceOf<T, I>, BoundedVec<u8, { T::StringLimit }>>,
 		ValueQuery,
 		GetDefault,
 		ConstU32<300_000>,

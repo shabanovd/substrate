@@ -423,8 +423,8 @@ parameter_types! {
 }
 
 impl pallet_balances::Config for Runtime {
-	type MaxLocks = MaxLocks;
-	type MaxReserves = MaxReserves;
+	const MaxLocks: u32 = MaxLocks::get();
+	const MaxReserves: u32 = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
 	type Balance = Balance;
 	type DustRemoval = ();

@@ -28,6 +28,7 @@
 
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(generic_const_exprs)]
 
 mod benchmarking;
 mod tests;
@@ -149,15 +150,13 @@ pub mod pallet {
 		type ProxyDepositFactor: Get<BalanceOf<Self>>;
 
 		/// The maximum amount of proxies allowed for a single account.
-		#[pallet::constant]
-		type MaxProxies: Get<u32>;
+		const MaxProxies: u32;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 
 		/// The maximum amount of time-delayed announcements that are allowed to be pending.
-		#[pallet::constant]
-		type MaxPending: Get<u32>;
+		const MaxPending: u32;
 
 		/// The type of hash used for hashing the call.
 		type CallHasher: Hash;
@@ -612,7 +611,7 @@ pub mod pallet {
 		Twox64Concat,
 		T::AccountId,
 		(
-			BoundedVec<ProxyDefinition<T::AccountId, T::ProxyType, T::BlockNumber>, T::MaxProxies>,
+			BoundedVec<ProxyDefinition<T::AccountId, T::ProxyType, T::BlockNumber>, { T::MaxProxies }>,
 			BalanceOf<T>,
 		),
 		ValueQuery,
@@ -626,7 +625,7 @@ pub mod pallet {
 		Twox64Concat,
 		T::AccountId,
 		(
-			BoundedVec<Announcement<T::AccountId, CallHashOf<T>, T::BlockNumber>, T::MaxPending>,
+			BoundedVec<Announcement<T::AccountId, CallHashOf<T>, T::BlockNumber>, { T::MaxPending }>,
 			BalanceOf<T>,
 		),
 		ValueQuery,

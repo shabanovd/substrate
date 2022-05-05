@@ -162,10 +162,7 @@ pub struct Delegating<Balance, AccountId, BlockNumber> {
 /// Information concerning the direct vote-casting of some voting power.
 #[derive(Encode, Decode, Clone, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 #[scale_info(skip_type_params(MaxVotes))]
-pub struct Casting<Balance, BlockNumber, PollIndex, MaxVotes>
-where
-	MaxVotes: Get<u32>,
-{
+pub struct Casting<Balance, BlockNumber, PollIndex, const MaxVotes: u32> {
 	/// The current votes of the account.
 	pub votes: BoundedVec<(PollIndex, AccountVote<Balance>), MaxVotes>,
 	/// The total amount of delegations that this account has received, post-conviction-weighting.

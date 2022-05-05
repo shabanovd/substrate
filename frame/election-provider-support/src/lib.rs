@@ -273,7 +273,7 @@ pub trait ElectionDataProvider {
 	type BlockNumber;
 
 	/// Maximum number of votes per voter that this data provider is providing.
-	type MaxVotesPerVoter: Get<u32>;
+	const MaxVotesPerVoter: u32;
 
 	/// All possible targets for the election, i.e. the targets that could become elected, thus
 	/// "electable".
@@ -336,7 +336,7 @@ pub trait ElectionDataProvider {
 	fn add_voter(
 		_voter: Self::AccountId,
 		_weight: VoteWeight,
-		_targets: BoundedVec<Self::AccountId, Self::MaxVotesPerVoter>,
+		_targets: BoundedVec<Self::AccountId, { Self::MaxVotesPerVoter }>,
 	) {
 	}
 
@@ -591,8 +591,7 @@ impl<
 }
 
 /// A voter, at the level of abstraction of this crate.
-pub type Voter<AccountId, Bound> = (AccountId, VoteWeight, BoundedVec<AccountId, Bound>);
+pub type Voter<AccountId, const Bound: u32> = (AccountId, VoteWeight, BoundedVec<AccountId, Bound>);
 
 /// Same as [`Voter`], but parameterized by an [`ElectionDataProvider`].
-pub type VoterOf<D> =
-	Voter<<D as ElectionDataProvider>::AccountId, <D as ElectionDataProvider>::MaxVotesPerVoter>;
+pub type VoterOf<D: ElectionDataProvider> = Voter<D::AccountId, { D::MaxVotesPerVoter }>;

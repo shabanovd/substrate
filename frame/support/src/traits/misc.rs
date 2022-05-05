@@ -356,18 +356,6 @@ where
 	}
 }
 
-pub trait IntoBound {
-	fn bound() -> usize;
-}
-
-impl<T> IntoBound for T
-	where T: Get<u32>
-{
-	fn bound() -> usize {
-		usize::try_from(T::get()).unwrap_or(0)
-	}
-}
-
 /// A trait for querying a single value from a type.
 ///
 /// It is not required that the value is constant.
@@ -407,31 +395,9 @@ macro_rules! impl_const_get {
 	};
 }
 
-macro_rules! impl_const_get_and_into_bound {
-	($name:ident, $t:ty) => {
-		#[derive($crate::RuntimeDebug)]
-		pub struct $name<const T: $t>;
-		impl<const T: $t> Get<$t> for $name<T> {
-			fn get() -> $t {
-				T
-			}
-		}
-		impl<const T: $t> Get<Option<$t>> for $name<T> {
-			fn get() -> Option<$t> {
-				Some(T)
-			}
-		}
-		impl<const T: $t> IntoBound for $name<T> {
-			fn bound() -> usize {
-				usize::try_from(T).unwrap_or(0)
-			}
-		}
-	};
-}
-
 impl_const_get!(ConstBool, bool);
-impl_const_get_and_into_bound!(ConstU8, u8);
-impl_const_get_and_into_bound!(ConstU16, u16);
+impl_const_get!(ConstU8, u8);
+impl_const_get!(ConstU16, u16);
 impl_const_get!(ConstU32, u32);
 impl_const_get!(ConstU64, u64);
 impl_const_get!(ConstU128, u128);
@@ -978,10 +944,10 @@ impl<Hash> PreimageProvider<Hash> for () {
 /// uses this API should implement that on their own side.
 pub trait PreimageRecipient<Hash>: PreimageProvider<Hash> {
 	/// Maximum size of a preimage.
-	type MaxSize: Get<u32>;
+	const MAX_SIZE: u32;
 
 	/// Store the bytes of a preimage on chain.
-	fn note_preimage(bytes: crate::BoundedVec<u8, Self::MaxSize>);
+	fn note_preimage(bytes: crate::BoundedVec<u8, { Self::MAX_SIZE }>);
 
 	/// Clear a previously noted preimage. This is infallible and should be treated more like a
 	/// hint - if it was not previously noted or if it is now requested, then this will not do
@@ -990,8 +956,8 @@ pub trait PreimageRecipient<Hash>: PreimageProvider<Hash> {
 }
 
 impl<Hash> PreimageRecipient<Hash> for () {
-	type MaxSize = ();
-	fn note_preimage(_: crate::BoundedVec<u8, Self::MaxSize>) {}
+	const MAX_SIZE: u32 = 0;
+	fn note_preimage(_: crate::BoundedVec<u8, 0>) {}
 	fn unnote_preimage(_: &Hash) {}
 }
 

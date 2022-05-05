@@ -37,6 +37,7 @@
 //! * `kill_name` - Forcibly remove the associated name; the deposit is lost.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(generic_const_exprs)]
 
 use frame_support::traits::{Currency, OnUnbalanced, ReservableCurrency};
 pub use pallet::*;
@@ -110,7 +111,7 @@ pub mod pallet {
 	/// The lookup table for names.
 	#[pallet::storage]
 	pub(super) type NameOf<T: Config> =
-		StorageMap<_, Twox64Concat, T::AccountId, (BoundedVec<u8, T::MaxLength>, BalanceOf<T>)>;
+		StorageMap<_, Twox64Concat, T::AccountId, (BoundedVec<u8, { T::MaxLength }>, BalanceOf<T>)>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]

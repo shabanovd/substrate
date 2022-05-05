@@ -46,7 +46,7 @@ pub mod v1 {
 				let v: Option<
 					BoundedVec<
 						VestingInfo<BalanceOf<T>, T::BlockNumber>,
-						MaxVestingSchedulesGet<T>,
+						{ T::MaxVestingSchedules },
 					>,
 				> = vec![vesting_info].try_into().ok();
 

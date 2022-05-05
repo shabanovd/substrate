@@ -237,8 +237,8 @@ impl pallet_timestamp::Config for Runtime {
 }
 
 impl pallet_balances::Config for Runtime {
-	type MaxLocks = ConstU32<50>;
-	type MaxReserves = ();
+	const MaxLocks: u32 = 50;
+	const MaxReserves: u32 = ();
 	type ReserveIdentifier = [u8; 8];
 	/// The type for recording an account's balance.
 	type Balance = Balance;

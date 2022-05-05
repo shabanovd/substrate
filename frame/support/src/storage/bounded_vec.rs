@@ -28,8 +28,7 @@ use core::{
 	ops::{Deref, Index, IndexMut, RangeBounds},
 	slice::SliceIndex,
 };
-use frame_support::traits::IntoBound;
-use sp_std::{marker::PhantomData, prelude::*};
+use sp_std::prelude::*;
 
 /// A bounded vector.
 ///
@@ -40,60 +39,66 @@ use sp_std::{marker::PhantomData, prelude::*};
 /// this bound is respected.
 #[derive(Encode, scale_info::TypeInfo)]
 #[scale_info(skip_type_params(S))]
-pub struct BoundedVec<T, S>(Vec<T>, PhantomData<S>);
+pub struct BoundedVec<T, const S: u32>(Vec<T>);
 
 /// A bounded slice.
 ///
 /// Similar to a `BoundedVec`, but not owned and cannot be decoded.
 #[derive(Encode, scale_info::TypeInfo)]
 #[scale_info(skip_type_params(S))]
-pub struct BoundedSlice<'a, T, S>(&'a [T], PhantomData<S>);
+pub struct BoundedSlice<'a, T, const S: u32>(&'a [T]);
+
+impl<'a, T, const S: u32> BoundedSlice<'a, T, S> {
+	fn bound() -> usize {
+		usize::try_from(S).unwrap_or(0)
+	}
+}
 
 // `BoundedSlice`s encode to something which will always decode into a `BoundedVec`,
 // `WeakBoundedVec`, or a `Vec`.
-impl<'a, T: Encode + Decode, S: IntoBound> EncodeLike<BoundedVec<T, S>> for BoundedSlice<'a, T, S> {}
-impl<'a, T: Encode + Decode, S: IntoBound> EncodeLike<WeakBoundedVec<T, S>>
+impl<'a, T: Encode + Decode, const S: u32> EncodeLike<BoundedVec<T, S>> for BoundedSlice<'a, T, S> {}
+impl<'a, T: Encode + Decode, const S: u32> EncodeLike<WeakBoundedVec<T, S>>
 	for BoundedSlice<'a, T, S>
 {
 }
-impl<'a, T: Encode + Decode, S: IntoBound> EncodeLike<Vec<T>> for BoundedSlice<'a, T, S> {}
+impl<'a, T: Encode + Decode, const S: u32> EncodeLike<Vec<T>> for BoundedSlice<'a, T, S> {}
 
-impl<T: PartialOrd, Bound: IntoBound> PartialOrd for BoundedVec<T, Bound> {
+impl<T: PartialOrd, const S: u32> PartialOrd for BoundedVec<T, S> {
 	fn partial_cmp(&self, other: &Self) -> Option<sp_std::cmp::Ordering> {
 		self.0.partial_cmp(&other.0)
 	}
 }
 
-impl<T: Ord, Bound: IntoBound> Ord for BoundedVec<T, Bound> {
+impl<T: Ord, const S: u32> Ord for BoundedVec<T, S> {
 	fn cmp(&self, other: &Self) -> sp_std::cmp::Ordering {
 		self.0.cmp(&other.0)
 	}
 }
 
-impl<'a, T, S: IntoBound> TryFrom<&'a [T]> for BoundedSlice<'a, T, S> {
+impl<'a, T, const S: u32> TryFrom<&'a [T]> for BoundedSlice<'a, T, S> {
 	type Error = ();
 	fn try_from(t: &'a [T]) -> Result<Self, Self::Error> {
-		if t.len() < S::bound() {
-			Ok(BoundedSlice(t, PhantomData))
+		if t.len() < Self::bound() {
+			Ok(BoundedSlice(t))
 		} else {
 			Err(())
 		}
 	}
 }
 
-impl<'a, T, S> From<BoundedSlice<'a, T, S>> for &'a [T] {
+impl<'a, T, const S: u32> From<BoundedSlice<'a, T, S>> for &'a [T] {
 	fn from(t: BoundedSlice<'a, T, S>) -> Self {
 		t.0
 	}
 }
 
-impl<T: Decode, S: IntoBound> Decode for BoundedVec<T, S> {
+impl<T: Decode, const S: u32> Decode for BoundedVec<T, S> {
 	fn decode<I: codec::Input>(input: &mut I) -> Result<Self, codec::Error> {
 		let inner = Vec::<T>::decode(input)?;
-		if inner.len() > S::bound() {
+		if inner.len() > Self::bound() {
 			return Err("BoundedVec exceeds its limit".into())
 		}
-		Ok(Self(inner, PhantomData))
+		Ok(Self(inner))
 	}
 
 	fn skip<I: codec::Input>(input: &mut I) -> Result<(), codec::Error> {
@@ -102,12 +107,12 @@ impl<T: Decode, S: IntoBound> Decode for BoundedVec<T, S> {
 }
 
 // `BoundedVec`s encode to something which will always decode as a `Vec`.
-impl<T: Encode + Decode, S: IntoBound> EncodeLike<Vec<T>> for BoundedVec<T, S> {}
+impl<T: Encode + Decode, const S: u32> EncodeLike<Vec<T>> for BoundedVec<T, S> {}
 
-impl<T, S> BoundedVec<T, S> {
+impl<T, const S: u32> BoundedVec<T, S> {
 	/// Create `Self` from `t` without any checks.
 	fn unchecked_from(t: Vec<T>) -> Self {
-		Self(t, Default::default())
+		Self(t)
 	}
 
 	/// Consume self, and return the inner `Vec`. Henceforth, the `Vec<_>` can be altered in an
@@ -204,19 +209,19 @@ impl<T, S> BoundedVec<T, S> {
 	}
 }
 
-impl<T, S: IntoBound> From<BoundedVec<T, S>> for Vec<T> {
+impl<T, const S: u32> From<BoundedVec<T, S>> for Vec<T> {
 	fn from(x: BoundedVec<T, S>) -> Vec<T> {
 		x.0
 	}
 }
 
-impl<T, S: IntoBound> BoundedVec<T, S> {
+impl<T, const S: u32> BoundedVec<T, S> {
 	/// Pre-allocate `capacity` items in self.
 	///
 	/// If `capacity` is greater than [`Self::bound`], then the minimum of the two is used.
 	pub fn with_bounded_capacity(capacity: usize) -> Self {
 		let capacity = capacity.min(Self::bound());
-		Self(Vec::with_capacity(capacity), Default::default())
+		Self(Vec::with_capacity(capacity))
 	}
 
 	/// Allocate self with the maximum possible capacity.
@@ -226,7 +231,7 @@ impl<T, S: IntoBound> BoundedVec<T, S> {
 
 	/// Get the bound of the type in `usize`.
 	pub fn bound() -> usize {
-		S::bound()
+		usize::try_from(S).unwrap_or(0)
 	}
 
 	/// Returns true of this collection is full.
@@ -439,24 +444,23 @@ impl<T, S: IntoBound> BoundedVec<T, S> {
 	}
 }
 
-impl<T, S> Default for BoundedVec<T, S> {
+impl<T, const S: u32> Default for BoundedVec<T, S> {
 	fn default() -> Self {
 		// the bound cannot be below 0, which is satisfied by an empty vector
 		Self::unchecked_from(Vec::default())
 	}
 }
 
-impl<T, S> sp_std::fmt::Debug for BoundedVec<T, S>
+impl<T, const S: u32> sp_std::fmt::Debug for BoundedVec<T, S>
 where
 	T: sp_std::fmt::Debug,
-	S: IntoBound,
 {
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
 		f.debug_tuple("BoundedVec").field(&self.0).field(&Self::bound()).finish()
 	}
 }
 
-impl<T, S> Clone for BoundedVec<T, S>
+impl<T, const S: u32> Clone for BoundedVec<T, S>
 where
 	T: Clone,
 {
@@ -466,7 +470,7 @@ where
 	}
 }
 
-impl<T, S: IntoBound> TryFrom<Vec<T>> for BoundedVec<T, S> {
+impl<T, const S: u32> TryFrom<Vec<T>> for BoundedVec<T, S> {
 	type Error = ();
 	fn try_from(t: Vec<T>) -> Result<Self, Self::Error> {
 		if t.len() <= Self::bound() {
@@ -479,26 +483,26 @@ impl<T, S: IntoBound> TryFrom<Vec<T>> for BoundedVec<T, S> {
 }
 
 // It is okay to give a non-mutable reference of the inner vec to anyone.
-impl<T, S> AsRef<Vec<T>> for BoundedVec<T, S> {
+impl<T, const S: u32> AsRef<Vec<T>> for BoundedVec<T, S> {
 	fn as_ref(&self) -> &Vec<T> {
 		&self.0
 	}
 }
 
-impl<T, S> AsRef<[T]> for BoundedVec<T, S> {
+impl<T, const S: u32> AsRef<[T]> for BoundedVec<T, S> {
 	fn as_ref(&self) -> &[T] {
 		&self.0
 	}
 }
 
-impl<T, S> AsMut<[T]> for BoundedVec<T, S> {
+impl<T, const S: u32> AsMut<[T]> for BoundedVec<T, S> {
 	fn as_mut(&mut self) -> &mut [T] {
 		&mut self.0
 	}
 }
 
 // will allow for immutable all operations of `Vec<T>` on `BoundedVec<T>`.
-impl<T, S> Deref for BoundedVec<T, S> {
+impl<T, const S: u32> Deref for BoundedVec<T, S> {
 	type Target = Vec<T>;
 
 	fn deref(&self) -> &Self::Target {
@@ -507,7 +511,7 @@ impl<T, S> Deref for BoundedVec<T, S> {
 }
 
 // Allows for indexing similar to a normal `Vec`. Can panic if out of bound.
-impl<T, S, I> Index<I> for BoundedVec<T, S>
+impl<T, const S: u32, I> Index<I> for BoundedVec<T, S>
 where
 	I: SliceIndex<[T]>,
 {
@@ -519,7 +523,7 @@ where
 	}
 }
 
-impl<T, S, I> IndexMut<I> for BoundedVec<T, S>
+impl<T, const S: u32, I> IndexMut<I> for BoundedVec<T, S>
 where
 	I: SliceIndex<[T]>,
 {
@@ -529,7 +533,7 @@ where
 	}
 }
 
-impl<T, S> sp_std::iter::IntoIterator for BoundedVec<T, S> {
+impl<T, const S: u32> IntoIterator for BoundedVec<T, S> {
 	type Item = T;
 	type IntoIter = sp_std::vec::IntoIter<T>;
 	fn into_iter(self) -> Self::IntoIter {
@@ -537,7 +541,7 @@ impl<T, S> sp_std::iter::IntoIterator for BoundedVec<T, S> {
 	}
 }
 
-impl<T, S> codec::DecodeLength for BoundedVec<T, S> {
+impl<T, const S: u32> codec::DecodeLength for BoundedVec<T, S> {
 	fn len(self_encoded: &[u8]) -> Result<usize, codec::Error> {
 		// `BoundedVec<T, _>` stored just a `Vec<T>`, thus the length is at the beginning in
 		// `Compact` form, and same implementation as `Vec<T>` can be used.
@@ -545,58 +549,54 @@ impl<T, S> codec::DecodeLength for BoundedVec<T, S> {
 	}
 }
 
-impl<T, BoundSelf, BoundRhs> PartialEq<BoundedVec<T, BoundRhs>> for BoundedVec<T, BoundSelf>
+impl<T, const BoundSelf: u32, const BoundRhs: u32> PartialEq<BoundedVec<T, BoundRhs>> for BoundedVec<T, BoundSelf>
 where
 	T: PartialEq,
-	BoundSelf: IntoBound,
-	BoundRhs: IntoBound,
 {
 	fn eq(&self, rhs: &BoundedVec<T, BoundRhs>) -> bool {
-		BoundSelf::bound() == BoundRhs::bound() && self.0 == rhs.0
+		BoundSelf == BoundRhs && self.0 == rhs.0
 	}
 }
 
-impl<T: PartialEq, S: IntoBound> PartialEq<Vec<T>> for BoundedVec<T, S> {
+impl<T: PartialEq, const S: u32> PartialEq<Vec<T>> for BoundedVec<T, S> {
 	fn eq(&self, other: &Vec<T>) -> bool {
 		&self.0 == other
 	}
 }
 
-impl<T, S: IntoBound> Eq for BoundedVec<T, S> where T: Eq {}
+impl<T, const S: u32> Eq for BoundedVec<T, S> where T: Eq {}
 
-impl<T, S> StorageDecodeLength for BoundedVec<T, S> {}
+impl<T, const S: u32> StorageDecodeLength for BoundedVec<T, S> {}
 
-impl<T, S: IntoBound> StorageTryAppend<T> for BoundedVec<T, S> {
+impl<T, const S: u32> StorageTryAppend<T> for BoundedVec<T, S> {
 	fn bound() -> usize {
-		S::bound()
+		Self::bound()
 	}
 }
 
-impl<T, S> MaxEncodedLen for BoundedVec<T, S>
+impl<T, const S: u32> MaxEncodedLen for BoundedVec<T, S>
 where
 	T: MaxEncodedLen,
-	S: IntoBound,
 	BoundedVec<T, S>: Encode,
 {
 	fn max_encoded_len() -> usize {
 		// BoundedVec<T, S> encodes like Vec<T> which encodes like [T], which is a compact u32
 		// plus each item in the slice:
 		// https://docs.substrate.io/v3/advanced/scale-codec
-		codec::Compact(S::bound() as u32)
+		codec::Compact(Self::bound() as u32)
 			.encoded_size()
 			.saturating_add(Self::bound().saturating_mul(T::max_encoded_len()))
 	}
 }
 
-impl<I, T, S> TryCollect<BoundedVec<T, S>> for I
+impl<I, T, const S: u32> TryCollect<BoundedVec<T, S>> for I
 where
 	I: ExactSizeIterator + Iterator<Item = T>,
-	S: IntoBound,
 {
 	type Error = &'static str;
 
 	fn try_collect(self) -> Result<BoundedVec<T, S>, Self::Error> {
-		if self.len() > S::bound() {
+		if self.len() > usize::try_from(S).unwrap_or(0) {
 			Err("iterator length too big")
 		} else {
 			Ok(BoundedVec::<T, S>::unchecked_from(self.collect::<Vec<T>>()))
@@ -610,16 +610,16 @@ pub mod test {
 	use crate::{bounded_vec, traits::ConstU8, traits::ConstU16, traits::ConstU32, Twox128};
 	use sp_io::TestExternalities;
 
-	crate::generate_storage_alias! { Prefix, Foo => Value<BoundedVec<u32, ConstU32<7>>> }
-	crate::generate_storage_alias! { Prefix, FooMap => Map<(Twox128, u32), BoundedVec<u32, ConstU32<7>>> }
+	crate::generate_storage_alias! { Prefix, Foo => Value<BoundedVec<u32, 7>> }
+	crate::generate_storage_alias! { Prefix, FooMap => Map<(Twox128, u32), BoundedVec<u32, 7>> }
 	crate::generate_storage_alias! {
 		Prefix,
-		FooDoubleMap => DoubleMap<(Twox128, u32), (Twox128, u32), BoundedVec<u32, ConstU32<7>>>
+		FooDoubleMap => DoubleMap<(Twox128, u32), (Twox128, u32), BoundedVec<u32, 7>>
 	}
 
 	#[test]
 	fn slide_works() {
-		let mut b: BoundedVec<u32, ConstU32<6>> = bounded_vec![0, 1, 2, 3, 4, 5];
+		let mut b: BoundedVec<u32, 6> = bounded_vec![0, 1, 2, 3, 4, 5];
 		assert!(b.slide(1, 5));
 		assert_eq!(*b, vec![0, 2, 3, 4, 1, 5]);
 		assert!(b.slide(4, 0));
@@ -636,7 +636,7 @@ pub mod test {
 		assert!(!b.slide(7, 0));
 		assert_eq!(*b, vec![0, 2, 3, 4, 5, 1]);
 
-		let mut c: BoundedVec<u32, ConstU32<6>> = bounded_vec![0, 1, 2];
+		let mut c: BoundedVec<u32, 6> = bounded_vec![0, 1, 2];
 		assert!(!c.slide(1, 5));
 		assert_eq!(*c, vec![0, 1, 2]);
 		assert!(!c.slide(4, 0));
@@ -649,7 +649,7 @@ pub mod test {
 
 	#[test]
 	fn slide_noops_work() {
-		let mut b: BoundedVec<u32, ConstU32<6>> = bounded_vec![0, 1, 2, 3, 4, 5];
+		let mut b: BoundedVec<u32, 6> = bounded_vec![0, 1, 2, 3, 4, 5];
 		assert!(!b.slide(3, 3));
 		assert_eq!(*b, vec![0, 1, 2, 3, 4, 5]);
 		assert!(!b.slide(3, 4));
@@ -658,7 +658,7 @@ pub mod test {
 
 	#[test]
 	fn force_insert_keep_left_works() {
-		let mut b: BoundedVec<u32, ConstU32<4>> = bounded_vec![];
+		let mut b: BoundedVec<u32, 4> = bounded_vec![];
 		assert_eq!(b.force_insert_keep_left(1, 10), Err(()));
 		assert!(b.is_empty());
 
@@ -677,7 +677,7 @@ pub mod test {
 		assert_eq!(b.force_insert_keep_left(0, 1), Ok(Some(30)));
 		assert_eq!(*b, vec![1, 10, 11, 20]);
 
-		let mut z: BoundedVec<u32, ConstU32<0>> = bounded_vec![];
+		let mut z: BoundedVec<u32, 0> = bounded_vec![];
 		assert!(z.is_empty());
 		assert_eq!(z.force_insert_keep_left(0, 10), Err(()));
 		assert!(z.is_empty());
@@ -685,7 +685,7 @@ pub mod test {
 
 	#[test]
 	fn force_insert_keep_right_works() {
-		let mut b: BoundedVec<u32, ConstU32<4>> = bounded_vec![];
+		let mut b: BoundedVec<u32, 4> = bounded_vec![];
 		assert_eq!(b.force_insert_keep_right(1, 10), Err(()));
 		assert!(b.is_empty());
 
@@ -708,7 +708,7 @@ pub mod test {
 		assert_eq!(b.force_insert_keep_right(5, 69), Err(()));
 		assert_eq!(*b, vec![30, 31, 40, 41]);
 
-		let mut z: BoundedVec<u32, ConstU32<0>> = bounded_vec![];
+		let mut z: BoundedVec<u32, 0> = bounded_vec![];
 		assert!(z.is_empty());
 		assert_eq!(z.force_insert_keep_right(0, 10), Err(()));
 		assert!(z.is_empty());
@@ -716,19 +716,19 @@ pub mod test {
 
 	#[test]
 	fn bound_returns_correct_value() {
-		assert_eq!(BoundedVec::<u32, ConstU32<7>>::bound(), 7);
+		assert_eq!(BoundedVec::<u32, 7>::bound(), 7);
 	}
 
 	#[test]
 	fn decode_len_works() {
 		TestExternalities::default().execute_with(|| {
-			let bounded: BoundedVec<u32, ConstU32<7>> = bounded_vec![1, 2, 3];
+			let bounded: BoundedVec<u32, 7> = bounded_vec![1, 2, 3];
 			Foo::put(bounded);
 			assert_eq!(Foo::decode_len().unwrap(), 3);
 		});
 
 		TestExternalities::default().execute_with(|| {
-			let bounded: BoundedVec<u32, ConstU32<7>> = bounded_vec![1, 2, 3];
+			let bounded: BoundedVec<u32, 7> = bounded_vec![1, 2, 3];
 			FooMap::insert(1, bounded);
 			assert_eq!(FooMap::decode_len(1).unwrap(), 3);
 			assert!(FooMap::decode_len(0).is_none());
@@ -736,7 +736,7 @@ pub mod test {
 		});
 
 		TestExternalities::default().execute_with(|| {
-			let bounded: BoundedVec<u32, ConstU32<7>> = bounded_vec![1, 2, 3];
+			let bounded: BoundedVec<u32, 7> = bounded_vec![1, 2, 3];
 			FooDoubleMap::insert(1, 1, bounded);
 			assert_eq!(FooDoubleMap::decode_len(1, 1).unwrap(), 3);
 			assert!(FooDoubleMap::decode_len(2, 1).is_none());
@@ -747,7 +747,7 @@ pub mod test {
 
 	#[test]
 	fn try_insert_works() {
-		let mut bounded: BoundedVec<u32, ConstU32<4>> = bounded_vec![1, 2, 3];
+		let mut bounded: BoundedVec<u32, 4> = bounded_vec![1, 2, 3];
 		bounded.try_insert(1, 0).unwrap();
 		assert_eq!(*bounded, vec![1, 0, 2, 3]);
 
@@ -760,24 +760,24 @@ pub mod test {
 		use frame_support::bounded_vec;
 
 		// With values. Use some brackets to make sure the macro doesn't expand.
-		let bv: BoundedVec<(u32, u32), ConstU32<3>> = bounded_vec![(1, 2), (1, 2), (1, 2)];
+		let bv: BoundedVec<(u32, u32), 3> = bounded_vec![(1, 2), (1, 2), (1, 2)];
 		assert_eq!(bv, vec![(1, 2), (1, 2), (1, 2)]);
 
 		// With repetition.
-		let bv: BoundedVec<(u32, u32), ConstU32<3>> = bounded_vec![(1, 2); 3];
+		let bv: BoundedVec<(u32, u32), 3> = bounded_vec![(1, 2); 3];
 		assert_eq!(bv, vec![(1, 2), (1, 2), (1, 2)]);
 	}
 
 	#[test]
 	#[should_panic(expected = "insertion index (is 9) should be <= len (is 3)")]
 	fn try_inert_panics_if_oob() {
-		let mut bounded: BoundedVec<u32, ConstU32<4>> = bounded_vec![1, 2, 3];
+		let mut bounded: BoundedVec<u32, 4> = bounded_vec![1, 2, 3];
 		bounded.try_insert(9, 0).unwrap();
 	}
 
 	#[test]
 	fn try_push_works() {
-		let mut bounded: BoundedVec<u32, ConstU32<4>> = bounded_vec![1, 2, 3];
+		let mut bounded: BoundedVec<u32, 4> = bounded_vec![1, 2, 3];
 		bounded.try_push(0).unwrap();
 		assert_eq!(*bounded, vec![1, 2, 3, 0]);
 
@@ -786,7 +786,7 @@ pub mod test {
 
 	#[test]
 	fn deref_coercion_works() {
-		let bounded: BoundedVec<u32, ConstU32<7>> = bounded_vec![1, 2, 3];
+		let bounded: BoundedVec<u32, 7> = bounded_vec![1, 2, 3];
 		// these methods come from deref-ed vec.
 		assert_eq!(bounded.len(), 3);
 		assert!(bounded.iter().next().is_some());
@@ -795,7 +795,7 @@ pub mod test {
 
 	#[test]
 	fn try_mutate_works() {
-		let bounded: BoundedVec<u32, ConstU32<7>> = bounded_vec![1, 2, 3, 4, 5, 6];
+		let bounded: BoundedVec<u32, 7> = bounded_vec![1, 2, 3, 4, 5, 6];
 		let bounded = bounded.try_mutate(|v| v.push(7)).unwrap();
 		assert_eq!(bounded.len(), 7);
 		assert!(bounded.try_mutate(|v| v.push(8)).is_none());
@@ -803,13 +803,13 @@ pub mod test {
 
 	#[test]
 	fn slice_indexing_works() {
-		let bounded: BoundedVec<u32, ConstU32<7>> = bounded_vec![1, 2, 3, 4, 5, 6];
+		let bounded: BoundedVec<u32, 7> = bounded_vec![1, 2, 3, 4, 5, 6];
 		assert_eq!(&bounded[0..=2], &[1, 2, 3]);
 	}
 
 	#[test]
 	fn vec_eq_works() {
-		let bounded: BoundedVec<u32, ConstU32<7>> = bounded_vec![1, 2, 3, 4, 5, 6];
+		let bounded: BoundedVec<u32, 7> = bounded_vec![1, 2, 3, 4, 5, 6];
 		assert_eq!(bounded, vec![1, 2, 3, 4, 5, 6]);
 	}
 
@@ -817,45 +817,45 @@ pub mod test {
 	fn too_big_vec_fail_to_decode() {
 		let v: Vec<u32> = vec![1, 2, 3, 4, 5];
 		assert_eq!(
-			BoundedVec::<u32, ConstU32<4>>::decode(&mut &v.encode()[..]),
+			BoundedVec::<u32, 4>::decode(&mut &v.encode()[..]),
 			Err("BoundedVec exceeds its limit".into()),
 		);
 	}
 
 	#[test]
 	fn can_be_collected() {
-		let b1: BoundedVec<u32, ConstU32<5>> = bounded_vec![1, 2, 3, 4];
-		let b2: BoundedVec<u32, ConstU32<5>> = b1.iter().map(|x| x + 1).try_collect().unwrap();
+		let b1: BoundedVec<u32, 5> = bounded_vec![1, 2, 3, 4];
+		let b2: BoundedVec<u32, 5> = b1.iter().map(|x| x + 1).try_collect().unwrap();
 		assert_eq!(b2, vec![2, 3, 4, 5]);
 
 		// can also be collected into a collection of length 4.
-		let b2: BoundedVec<u32, ConstU32<4>> = b1.iter().map(|x| x + 1).try_collect().unwrap();
+		let b2: BoundedVec<u32, 4> = b1.iter().map(|x| x + 1).try_collect().unwrap();
 		assert_eq!(b2, vec![2, 3, 4, 5]);
 
 		// can be mutated further into iterators that are `ExactSizedIterator`.
-		let b2: BoundedVec<u32, ConstU32<4>> =
+		let b2: BoundedVec<u32, 4> =
 			b1.iter().map(|x| x + 1).rev().try_collect().unwrap();
 		assert_eq!(b2, vec![5, 4, 3, 2]);
 
-		let b2: BoundedVec<u32, ConstU32<4>> =
+		let b2: BoundedVec<u32, 4> =
 			b1.iter().map(|x| x + 1).rev().skip(2).try_collect().unwrap();
 		assert_eq!(b2, vec![3, 2]);
-		let b2: BoundedVec<u32, ConstU32<2>> =
+		let b2: BoundedVec<u32, 2> =
 			b1.iter().map(|x| x + 1).rev().skip(2).try_collect().unwrap();
 		assert_eq!(b2, vec![3, 2]);
 
-		let b2: BoundedVec<u32, ConstU32<4>> =
+		let b2: BoundedVec<u32, 4> =
 			b1.iter().map(|x| x + 1).rev().take(2).try_collect().unwrap();
 		assert_eq!(b2, vec![5, 4]);
-		let b2: BoundedVec<u32, ConstU32<2>> =
+		let b2: BoundedVec<u32, 2> =
 			b1.iter().map(|x| x + 1).rev().take(2).try_collect().unwrap();
 		assert_eq!(b2, vec![5, 4]);
 
 		// but these worn't work
-		let b2: Result<BoundedVec<u32, ConstU32<3>>, _> = b1.iter().map(|x| x + 1).try_collect();
+		let b2: Result<BoundedVec<u32, 3>, _> = b1.iter().map(|x| x + 1).try_collect();
 		assert!(b2.is_err());
 
-		let b2: Result<BoundedVec<u32, ConstU32<1>>, _> =
+		let b2: Result<BoundedVec<u32, 1>, _> =
 			b1.iter().map(|x| x + 1).rev().take(2).try_collect();
 		assert!(b2.is_err());
 	}
@@ -863,57 +863,41 @@ pub mod test {
 	#[test]
 	fn eq_works() {
 		// of same type
-		let b1: BoundedVec<u32, ConstU32<7>> = bounded_vec![1, 2, 3];
-		let b2: BoundedVec<u32, ConstU32<7>> = bounded_vec![1, 2, 3];
+		let b1: BoundedVec<u32, 7> = bounded_vec![1, 2, 3];
+		let b2: BoundedVec<u32, 7> = bounded_vec![1, 2, 3];
 		assert_eq!(b1, b2);
 
-		// of different type, but same value and bound.
-		crate::parameter_types! {
-			A1: u8 = 7;
-			A2: u8 = 7;
-		}
-		let b1: BoundedVec<u32, A1> = bounded_vec![1, 2, 3];
-		let b2: BoundedVec<u32, A2> = bounded_vec![1, 2, 3];
-		assert_eq!(b1, b2);
-
-		crate::parameter_types! {
-			B1: u16 = 7;
-			B2: u16 = 7;
-		}
-		let b1: BoundedVec<u32, B1> = bounded_vec![1, 2, 3];
-		let b2: BoundedVec<u32, B2> = bounded_vec![1, 2, 3];
-		assert_eq!(b1, b2);
-
-		crate::parameter_types! {
-			C1: u32 = 7;
-			C2: u32 = 7;
-		}
-		let b1: BoundedVec<u32, C1> = bounded_vec![1, 2, 3];
-		let b2: BoundedVec<u32, C2> = bounded_vec![1, 2, 3];
-		assert_eq!(b1, b2);
-
+		// // of different type, but same value and bound.
 		// crate::parameter_types! {
-		// 	D1: u64 = 7;
-		// 	D2: u64 = 7;
+		// 	A1: u8 = 7;
+		// 	A2: u8 = 7;
 		// }
-		// let b1: BoundedVec<u32, D1> = bounded_vec![1, 2, 3];
-		// let b2: BoundedVec<u32, D2> = bounded_vec![1, 2, 3];
+		// let b1: BoundedVec<u32, { A1::get() }> = bounded_vec![1, 2, 3];
+		// let b2: BoundedVec<u32, { A2::get() }> = bounded_vec![1, 2, 3];
 		// assert_eq!(b1, b2);
 		//
 		// crate::parameter_types! {
-		// 	E1: u128 = 7;
-		// 	E2: u128 = 7;
+		// 	B1: u16 = 7;
+		// 	B2: u16 = 7;
 		// }
-		// let b1: BoundedVec<u32, E1> = bounded_vec![1, 2, 3];
-		// let b2: BoundedVec<u32, E2> = bounded_vec![1, 2, 3];
+		// let b1: BoundedVec<u32, { B1::get() }> = bounded_vec![1, 2, 3];
+		// let b2: BoundedVec<u32, { B2::get() }> = bounded_vec![1, 2, 3];
+		// assert_eq!(b1, b2);
+		//
+		// crate::parameter_types! {
+		// 	C1: u32 = 7;
+		// 	C2: u32 = 7;
+		// }
+		// let b1: BoundedVec<u32, { C1::get() }> = bounded_vec![1, 2, 3];
+		// let b2: BoundedVec<u32, { C2::get() }> = bounded_vec![1, 2, 3];
 		// assert_eq!(b1, b2);
 	}
 
 	#[test]
 	fn ord_works() {
 		use std::cmp::Ordering;
-		let b1: BoundedVec<u32, ConstU32<7>> = bounded_vec![1, 2, 3];
-		let b2: BoundedVec<u32, ConstU32<7>> = bounded_vec![1, 3, 2];
+		let b1: BoundedVec<u32, 7> = bounded_vec![1, 2, 3];
+		let b2: BoundedVec<u32, 7> = bounded_vec![1, 3, 2];
 
 		// ordering for vec is lexicographic.
 		assert_eq!(b1.cmp(&b2), Ordering::Less);
@@ -922,7 +906,7 @@ pub mod test {
 
 	#[test]
 	fn try_extend_works() {
-		let mut b: BoundedVec<u32, ConstU32<5>> = bounded_vec![1, 2, 3];
+		let mut b: BoundedVec<u32, 5> = bounded_vec![1, 2, 3];
 
 		assert!(b.try_extend(vec![4].into_iter()).is_ok());
 		assert_eq!(*b, vec![1, 2, 3, 4]);
@@ -933,27 +917,27 @@ pub mod test {
 		assert!(b.try_extend(vec![6].into_iter()).is_err());
 		assert_eq!(*b, vec![1, 2, 3, 4, 5]);
 
-		let mut b: BoundedVec<u32, ConstU32<5>> = bounded_vec![1, 2, 3];
+		let mut b: BoundedVec<u32, 5> = bounded_vec![1, 2, 3];
 		assert!(b.try_extend(vec![4, 5].into_iter()).is_ok());
 		assert_eq!(*b, vec![1, 2, 3, 4, 5]);
 
-		let mut b: BoundedVec<u32, ConstU32<5>> = bounded_vec![1, 2, 3];
+		let mut b: BoundedVec<u32, 5> = bounded_vec![1, 2, 3];
 		assert!(b.try_extend(vec![4, 5, 6].into_iter()).is_err());
 		assert_eq!(*b, vec![1, 2, 3]);
 	}
 
 	#[test]
 	fn try_into_works() {
-		// with u8 bound
-		let bv: BoundedVec<u32, ConstU8<3>> = sp_std::vec![1, 2, 3].try_into().unwrap();
-		assert_eq!(bv, vec![1, 2, 3]);
-
-		// with u16 bound
-		let bv: BoundedVec<u32, ConstU16<3>> = sp_std::vec![1, 2, 3].try_into().unwrap();
-		assert_eq!(bv, vec![1, 2, 3]);
+		// // with u8 bound
+		// let bv: BoundedVec<u32, 3_u8> = sp_std::vec![1, 2, 3].try_into().unwrap();
+		// assert_eq!(bv, vec![1, 2, 3]);
+		//
+		// // with u16 bound
+		// let bv: BoundedVec<u32, 3_u16> = sp_std::vec![1, 2, 3].try_into().unwrap();
+		// assert_eq!(bv, vec![1, 2, 3]);
 
 		// with u32 bound
-		let bv: BoundedVec<u32, ConstU32<3>> = sp_std::vec![1, 2, 3].try_into().unwrap();
+		let bv: BoundedVec<u32, 3_u32> = sp_std::vec![1, 2, 3].try_into().unwrap();
 		assert_eq!(bv, vec![1, 2, 3]);
 	}
 }

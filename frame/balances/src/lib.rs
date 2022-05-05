@@ -152,6 +152,7 @@
 //! * Total issued balanced of all accounts should be less than `Config::Balance::max_value()`.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(generic_const_exprs)]
 
 #[macro_use]
 mod tests;
@@ -229,12 +230,10 @@ pub mod pallet {
 
 		/// The maximum number of locks that should exist on an account.
 		/// Not strictly enforced, but used for weight estimation.
-		#[pallet::constant]
-		type MaxLocks: Get<u32>;
+		const MaxLocks: u32;
 
 		/// The maximum number of named reserves that can exist on an account.
-		#[pallet::constant]
-		type MaxReserves: Get<u32>;
+		const MaxReserves: u32;
 
 		/// The id type for named reserves.
 		type ReserveIdentifier: Parameter + Member + MaxEncodedLen + Ord + Copy;
@@ -538,7 +537,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::AccountId,
-		WeakBoundedVec<BalanceLock<T::Balance>, T::MaxLocks>,
+		WeakBoundedVec<BalanceLock<T::Balance>, { T::MaxLocks }>,
 		ValueQuery,
 		GetDefault,
 		ConstU32<300_000>,
@@ -551,7 +550,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::AccountId,
-		BoundedVec<ReserveData<T::ReserveIdentifier, T::Balance>, T::MaxReserves>,
+		BoundedVec<ReserveData<T::ReserveIdentifier, T::Balance>, { T::MaxReserves }>,
 		ValueQuery,
 	>;
 

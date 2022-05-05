@@ -76,6 +76,7 @@
 
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(generic_const_exprs)]
 
 mod benchmarking;
 mod mock;
@@ -240,12 +241,11 @@ where
 #[derive(Clone, Eq, PartialEq, Encode, Decode, MaxEncodedLen, TypeInfo)]
 #[codec(mel_bound())]
 #[scale_info(skip_type_params(PeerIdEncodingLimit, MultiAddrEncodingLimit, AddressesLimit))]
-pub struct BoundedOpaqueNetworkState<PeerIdEncodingLimit, MultiAddrEncodingLimit, AddressesLimit>
-where
-	PeerIdEncodingLimit: Get<u32>,
-	MultiAddrEncodingLimit: Get<u32>,
-	AddressesLimit: Get<u32>,
-{
+pub struct BoundedOpaqueNetworkState<
+	const PeerIdEncodingLimit: u32,
+	const MultiAddrEncodingLimit: u32,
+	const AddressesLimit: u32
+> {
 	/// PeerId of the local node in SCALE encoded.
 	pub peer_id: WeakBoundedVec<u8, PeerIdEncodingLimit>,
 	/// List of addresses the node knows it can be reached as.
@@ -253,7 +253,7 @@ where
 		WeakBoundedVec<WeakBoundedVec<u8, MultiAddrEncodingLimit>, AddressesLimit>,
 }
 
-impl<PeerIdEncodingLimit: Get<u32>, MultiAddrEncodingLimit: Get<u32>, AddressesLimit: Get<u32>>
+impl<const PeerIdEncodingLimit: u32, const MultiAddrEncodingLimit: u32, const AddressesLimit: u32>
 	BoundedOpaqueNetworkState<PeerIdEncodingLimit, MultiAddrEncodingLimit, AddressesLimit>
 {
 	fn force_from(ons: &OpaqueNetworkState) -> Self {
@@ -327,14 +327,14 @@ pub mod pallet {
 			+ MaxEncodedLen;
 
 		/// The maximum number of keys that can be added.
-		type MaxKeys: Get<u32>;
+		const MaxKeys: u32;
 
 		/// The maximum number of peers to be stored in `ReceivedHeartbeats`
-		type MaxPeerInHeartbeats: Get<u32>;
+		const MaxPeerInHeartbeats: u32;
 
 		/// The maximum size of the encoding of `PeerId` and `MultiAddr` that are coming
 		/// from the hearbeat
-		type MaxPeerDataEncodingSize: Get<u32>;
+		const MaxPeerDataEncodingSize: u32;
 
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -407,7 +407,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn keys)]
 	pub(crate) type Keys<T: Config> =
-		StorageValue<_, WeakBoundedVec<T::AuthorityId, T::MaxKeys>, ValueQuery>;
+		StorageValue<_, WeakBoundedVec<T::AuthorityId, { T::MaxKeys }>, ValueQuery>;
 
 	/// For each session index, we keep a mapping of `SessionIndex` and `AuthIndex` to
 	/// `WrapperOpaque<BoundedOpaqueNetworkState>`.
@@ -421,9 +421,9 @@ pub mod pallet {
 		AuthIndex,
 		WrapperOpaque<
 			BoundedOpaqueNetworkState<
-				T::MaxPeerDataEncodingSize,
-				T::MaxPeerDataEncodingSize,
-				T::MaxPeerInHeartbeats,
+				{ T::MaxPeerDataEncodingSize },
+				{ T::MaxPeerDataEncodingSize },
+				{ T::MaxPeerInHeartbeats },
 			>,
 		>,
 	>;

@@ -46,6 +46,7 @@
 //! effort only.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(generic_const_exprs)]
 
 mod benchmarking;
 #[cfg(test)]
@@ -152,8 +153,7 @@ pub mod pallet {
 		type ManagerOrigin: EnsureOrigin<Self::Origin>;
 
 		/// The max number of calls available in a single lottery.
-		#[pallet::constant]
-		type MaxCalls: Get<u32>;
+		const MaxCalls: u32;
 
 		/// Used to determine if a call would be valid for purchasing a ticket.
 		///
@@ -217,7 +217,7 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		T::AccountId,
-		(u32, BoundedVec<CallIndex, T::MaxCalls>),
+		(u32, BoundedVec<CallIndex, { T::MaxCalls }>),
 		ValueQuery,
 	>;
 
@@ -236,7 +236,7 @@ pub mod pallet {
 	/// by `Config::ValidateCall`.
 	#[pallet::storage]
 	pub(crate) type CallIndices<T: Config> =
-		StorageValue<_, BoundedVec<CallIndex, T::MaxCalls>, ValueQuery>;
+		StorageValue<_, BoundedVec<CallIndex, { T::MaxCalls }>, ValueQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -405,7 +405,7 @@ impl<T: Config> Pallet<T> {
 	/// Converts a vector of calls into a vector of call indices.
 	fn calls_to_indices(
 		calls: &[<T as Config>::Call],
-	) -> Result<BoundedVec<CallIndex, T::MaxCalls>, DispatchError> {
+	) -> Result<BoundedVec<CallIndex, { T::MaxCalls }>, DispatchError> {
 		let mut indices = BoundedVec::<CallIndex, T::MaxCalls>::with_bounded_capacity(calls.len());
 		for c in calls.iter() {
 			let index = Self::call_to_index(c)?;

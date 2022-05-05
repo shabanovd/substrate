@@ -18,6 +18,7 @@
 //! Support code for the runtime.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(generic_const_exprs)]
 
 /// Export ourself as `frame_support` to make tests happy.
 extern crate self as frame_support;

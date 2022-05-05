@@ -359,7 +359,7 @@ pub trait WeightInfo {
 }
 
 /// Bounded version of `AuthorityList`, `Limit` being the bound
-pub type BoundedAuthorityList<Limit> = WeakBoundedVec<(AuthorityId, AuthorityWeight), Limit>;
+pub type BoundedAuthorityList<const Limit: u32> = WeakBoundedVec<(AuthorityId, AuthorityWeight), Limit>;
 
 /// A stored pending change.
 /// `Limit` is the bound for `next_authorities`

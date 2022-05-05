@@ -43,6 +43,7 @@
 //!   "vested" so far.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(generic_const_exprs)]
 
 mod benchmarking;
 
@@ -135,14 +136,6 @@ impl VestingAction {
 	}
 }
 
-// Wrapper for `T::MAX_VESTING_SCHEDULES` to satisfy `trait Get`.
-pub struct MaxVestingSchedulesGet<T>(PhantomData<T>);
-impl<T: Config> Get<u32> for MaxVestingSchedulesGet<T> {
-	fn get() -> u32 {
-		T::MAX_VESTING_SCHEDULES
-	}
-}
-
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -191,7 +184,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::AccountId,
-		BoundedVec<VestingInfo<BalanceOf<T>, T::BlockNumber>, MaxVestingSchedulesGet<T>>,
+		BoundedVec<VestingInfo<BalanceOf<T>, T::BlockNumber>, { T::MAX_VESTING_SCHEDULES }>,
 	>;
 
 	/// Storage version of the pallet.
@@ -583,7 +576,7 @@ impl<T: Config> Pallet<T> {
 	) -> Result<(), DispatchError> {
 		let schedules: BoundedVec<
 			VestingInfo<BalanceOf<T>, T::BlockNumber>,
-			MaxVestingSchedulesGet<T>,
+			{ T::MaxVestingSchedules },
 		> = schedules.try_into().map_err(|_| Error::<T>::AtMaxVestingSchedules)?;
 
 		if schedules.len() == 0 {
